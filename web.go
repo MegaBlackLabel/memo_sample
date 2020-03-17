@@ -2,7 +2,6 @@ package main
 
 import (
 	"flag"
-	"log"
 	loggersub "memo_sample/adapter/logger"
 	"memo_sample/di"
 	"memo_sample/infra/database"
@@ -11,6 +10,7 @@ import (
 	//"gopkg.in/DataDog/dd-trace-go.v1/ddtrace/mocktracer"
 	//"gopkg.in/DataDog/dd-trace-go.v1/ddtrace/opentracer"
 	"gopkg.in/DataDog/dd-trace-go.v1/ddtrace/tracer"
+	httptrace "gopkg.in/DataDog/dd-trace-go.v1/contrib/net/http"
 )
 
 func main() {
@@ -43,27 +43,19 @@ func main() {
 
 	//tracer.Start(tracer.WithAgentAddr("host:port"))
 	//tracer.Start(tracer.WithAgentAddr("localhost:8080"))
-	tracer.Start()
+	tracer.Start(tracer.WithServiceName("test-go"))
 	defer tracer.Stop()
-
-	wrappedHandler := func(pattern string, handler http.HandlerFunc) {
-		http.HandleFunc(pattern, func(w http.ResponseWriter, r *http.Request) {
-			span := tracer.StartSpan(pattern)
-			defer span.Finish()
-			//log.Printf("execute http.Handle url:%s", pattern)
-			handler(w, r)
-		})
-	}
 
 	loggersub.NewLogger().Debugf("main called. ping check:%v\n", *ping)
 
+	mux := httptrace.NewServeMux() // init the http tracer
 
 	api := di.InjectAPIServer()
-	wrappedHandler("/", interceptor(api.GetMemos))
-	wrappedHandler("/post", interceptor(api.PostMemo))
-	wrappedHandler("/post/memo_tags", interceptor(api.PostMemoAndTags))
-	wrappedHandler("/search/tags_memos", interceptor(api.SearchTagsAndMemos))
-	err = http.ListenAndServe(":8080", nil)
+	mux.HandleFunc("/", interceptor(api.GetMemos))
+	mux.HandleFunc("/post", interceptor(api.PostMemo))
+	mux.HandleFunc("/post/memo_tags", interceptor(api.PostMemoAndTags))
+	mux.HandleFunc("/search/tags_memos", interceptor(api.SearchTagsAndMemos))
+	err = http.ListenAndServe(":8080", mux)
 	if err != nil {
 		loggersub.NewLogger().Errorf("ListenAndServe error: %#+v\n", err)
 	}
