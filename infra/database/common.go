@@ -4,8 +4,11 @@ import (
 	"context"
 	"database/sql"
 	"fmt"
+	_ "github.com/go-sql-driver/mysql"
 	"math/rand"
 	"time"
+
+	sqltrace "gopkg.in/DataDog/dd-trace-go.v1/contrib/database/sql"
 )
 
 var dm *DBM
@@ -32,6 +35,7 @@ const (
 
 // DBM database manager
 type DBM interface {
+	Init()
 	ConnectDB() error
 	ConnectTestDB() error
 	PingDB() error
@@ -49,10 +53,12 @@ type dbm struct {
 	stmt  *sql.Stmt
 }
 
+
+
 // openDB open database
 func (m *dbm) openDB(driverName, dataSourceName string) error {
 	var err error
-	m.db, err = sql.Open(driverName, dataSourceName)
+	m.db, err = sqltrace.Open(driverName, dataSourceName)
 	if err != nil {
 		return err
 	}

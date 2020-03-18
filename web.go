@@ -2,6 +2,7 @@ package main
 
 import (
 	"flag"
+	"gopkg.in/DataDog/dd-trace-go.v1/ddtrace/ext"
 	loggersub "memo_sample/adapter/logger"
 	"memo_sample/di"
 	"memo_sample/infra/database"
@@ -16,6 +17,14 @@ import (
 func main() {
 	ping := flag.Bool("ping", false, "check ping")
 	flag.Parse()
+
+	// DataDog
+	//tracer.Start(tracer.WithAgentAddr("host:port"))
+	//tracer.Start(tracer.WithAgentAddr("localhost:8080"))
+	tracer.Start(tracer.WithServiceName("test-go"))
+	defer tracer.Stop()
+
+	(*database.GetDBM()).Init()
 
 	defer func() {
 		_ = (*database.GetDBM()).CloseDB()
@@ -37,14 +46,22 @@ func main() {
 				loggersub.NewLogger().Errorf("db open error: %#+v\n", err)
 				panic(err)
 			}
+
+			// DadaDog(sqltrace)
+			span, ctx := tracer.StartSpanFromContext(r.Context(), "my-query",
+				tracer.SpanType(ext.SpanTypeSQL),
+				tracer.ServiceName("my-db"),
+				tracer.ResourceName("DB-Access"),
+			)
+			defer span.Finish()
+
+			r = r.WithContext(ctx)
+
 			h(w, r)
 		}
 	}
 
-	//tracer.Start(tracer.WithAgentAddr("host:port"))
-	//tracer.Start(tracer.WithAgentAddr("localhost:8080"))
-	tracer.Start(tracer.WithServiceName("test-go"))
-	defer tracer.Stop()
+
 
 	loggersub.NewLogger().Debugf("main called. ping check:%v\n", *ping)
 

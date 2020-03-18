@@ -2,8 +2,17 @@ package database
 
 import (
 	// MySQL driver
+	"github.com/go-sql-driver/mysql"
 	_ "github.com/go-sql-driver/mysql"
+
+
+	sqltrace "gopkg.in/DataDog/dd-trace-go.v1/contrib/database/sql"
 )
+
+func (m *dbm) Init() {
+	sqltrace.Register("mysql", &mysql.MySQLDriver{}, sqltrace.WithServiceName("my-db"))
+}
+
 
 // ConnectDB DB接続
 func (m *dbm) ConnectDB() error {
